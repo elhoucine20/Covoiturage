@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: covoiturage-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD manquant dans le fichier .env}
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - covoiturage_pgdata:/var/lib/postgresql/data
+
+volumes:
+  covoiturage_pgdata:
