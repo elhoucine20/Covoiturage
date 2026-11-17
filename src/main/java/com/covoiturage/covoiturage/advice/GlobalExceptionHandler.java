@@ -2,6 +2,7 @@ package com.covoiturage.covoiturage.advice;
 
 import com.covoiturage.covoiturage.exception.BusinessRuleException;
 import com.covoiturage.covoiturage.exception.ForbiddenActionException;
+import com.covoiturage.covoiturage.exception.InvalidRequestException;
 import com.covoiturage.covoiturage.exception.ResourceNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -141,6 +142,16 @@ public class GlobalExceptionHandler {
 
         log.warn("Action interdite : {}", ex.getMessage());
         return buildTheError(ex, HttpStatus.FORBIDDEN.value(), request);
+    }
+
+    // 400 donnees refusees par le service (places > capacite)
+    @ExceptionHandler(InvalidRequestException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST) // 400
+    public ProblemDetail handleInvalidRequest(
+            InvalidRequestException ex, WebRequest request) {
+
+        log.warn("Requete invalide : {}", ex.getMessage());
+        return buildTheError(ex, HttpStatus.BAD_REQUEST.value(), request);
     }
 
 
