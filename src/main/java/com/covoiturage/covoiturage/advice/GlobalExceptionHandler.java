@@ -1,6 +1,7 @@
 package com.covoiturage.covoiturage.advice;
 
 import com.covoiturage.covoiturage.exception.BusinessRuleException;
+import com.covoiturage.covoiturage.exception.ForbiddenActionException;
 import com.covoiturage.covoiturage.exception.ResourceNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -131,6 +132,17 @@ public class GlobalExceptionHandler {
         return buildTheError("Une erreur interne est survenue",
                 HttpStatus.INTERNAL_SERVER_ERROR.value(), request);
     }
+
+    // 403 action sur la ressource d'un autre
+    @ExceptionHandler(ForbiddenActionException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN) // 403
+    public ProblemDetail handleForbidden(
+            ForbiddenActionException ex, WebRequest request) {
+
+        log.warn("Action interdite : {}", ex.getMessage());
+        return buildTheError(ex, HttpStatus.FORBIDDEN.value(), request);
+    }
+
 
     // prend le message directement depuis l'exception, puis appelle la version complete.
     private ProblemDetail buildTheError(Exception ex, int status, WebRequest request) {

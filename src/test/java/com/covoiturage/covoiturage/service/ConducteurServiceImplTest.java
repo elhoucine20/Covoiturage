@@ -45,7 +45,6 @@ class ConducteurServiceImplTest {
     private ConducteurRequest request;
 
     // Execute avant chaque test : une requete de base avec un email "sale"
-    // (espaces + majuscules) pour tester la normalisation
     @BeforeEach
     void setUp() {
         request = new ConducteurRequest(
