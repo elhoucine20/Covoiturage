@@ -8,7 +8,7 @@ import java.util.Date;
 
 @Data
 @Builder
-public class ErrorResponse {
+public class ProblemDetail {
 
     private Date timestamp;
     private int statusCode;

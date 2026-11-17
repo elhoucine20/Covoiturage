@@ -1,11 +1,11 @@
 package com.covoiturage.covoiturage.advice;
 
-import com.covoiturage.covoiturage.advice.ErrorResponse;
 import com.covoiturage.covoiturage.exception.BusinessRuleException;
 import com.covoiturage.covoiturage.exception.ResourceNotFoundException;
-import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -17,112 +17,142 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
-import java.util.Date;
+import java.time.Instant;
+import java.util.stream.Collectors;
 
+@Slf4j //cree automatiquement un objet "log" dans la classe (console=>warn,error)
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    // Gere les erreurs de validation des donnees recues
+    // 400 donnees invalides @Valid
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST) // 400
-    public ErrorResponse handleValidation(
+    public ProblemDetail handleValidation(
             MethodArgumentNotValidException ex, WebRequest request) {
 
-        return buildTheError(ex, HttpStatus.BAD_REQUEST.value(), request);
+        // Collectors.joining(", ") : colle tous les textes avec une virgule entre eux
+        String detail = ex.getBindingResult().getFieldErrors().stream()
+                .map(e -> e.getField() + " : " + e.getDefaultMessage())
+                .collect(Collectors.joining(", "));
+
+        // Les donnees sont refusees par la validation : on log en WARN
+        log.warn("Validation refusee : {}", detail);
+        return buildTheError(detail, HttpStatus.BAD_REQUEST.value(), request);
     }
 
-    // Gere les erreurs liees a un JSON absent ou mal forme
+    // 400 JSON absent ou mal form
     @ExceptionHandler(HttpMessageNotReadableException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST) // 400
-    public ErrorResponse handleJsonIllisible(
+    public ProblemDetail handleJsonIllisible(
             HttpMessageNotReadableException ex, WebRequest request) {
 
-        return buildTheError(ex, HttpStatus.BAD_REQUEST.value(), request);
+        log.warn("JSON illisible : {}", ex.getMessage());
+        return buildTheError("Le corps de la requete est absent ou mal forme",
+                HttpStatus.BAD_REQUEST.value(), request);
     }
 
-    // Gere les erreurs de conversion des parametres. Exemple : envoyer une chaine au lieu d'un identifiant Long.
+    // 400 mauvais type de parametr
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST) // 400
-    public ErrorResponse handleTypeInvalide(
+    public ProblemDetail handleTypeInvalide(
             MethodArgumentTypeMismatchException ex, WebRequest request) {
 
-        return buildTheError(ex, HttpStatus.BAD_REQUEST.value(), request);
+        log.warn("Type de parametre invalide : {}", ex.getName());
+        return buildTheError("La valeur du parametre '" + ex.getName() + "' est invalide",
+                HttpStatus.BAD_REQUEST.value(), request);
     }
 
-    // Gere les parametres obligatoires absents d'une requete. Exemple : un @RequestParam obligatoire n'est pas envoye.
+    // 400 parametre obligatoire absent
     @ExceptionHandler(MissingServletRequestParameterException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST) // 400
-    public ErrorResponse handleParametreManquant(
+    public ProblemDetail handleParametreManquant(
             MissingServletRequestParameterException ex, WebRequest request) {
 
+        log.warn("Parametre manquant : {}", ex.getParameterName());
         return buildTheError(ex, HttpStatus.BAD_REQUEST.value(), request);
     }
 
-    // Gere les cas : "rechercher un trajet avec un identifiant inexistant"
+    // 404 ressource metier introuvable
     @ExceptionHandler(ResourceNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND) // 404
-    public ErrorResponse handleNotFound(
+    public ProblemDetail handleNotFound(
             ResourceNotFoundException ex, WebRequest request) {
 
+        log.warn("Ressource introuvable : {}", ex.getMessage());
         return buildTheError(ex, HttpStatus.NOT_FOUND.value(), request);
     }
 
-    // Gere les demandes visant une ressource inexistante.
+    // 404 URL qui n'existe pas dans l'API
     @ExceptionHandler(NoResourceFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND) // 404
-    public ErrorResponse handleRouteInconnue(
+    public ProblemDetail handleRouteInconnue(
             NoResourceFoundException ex, WebRequest request) {
 
         return buildTheError(ex, HttpStatus.NOT_FOUND.value(), request);
     }
 
-    // Gere les methodes HTTP non supportees par un endpoint.
-
+    // 405 mauvaise methode HTTP
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     @ResponseStatus(HttpStatus.METHOD_NOT_ALLOWED) // 405
-    public ErrorResponse handleMethodeInterdite(
+    public ProblemDetail handleMethodeInterdite(
             HttpRequestMethodNotSupportedException ex, WebRequest request) {
 
         return buildTheError(ex, HttpStatus.METHOD_NOT_ALLOWED.value(), request);
     }
 
-    // Gere les exceptions liees aux regles metier de l'application
+    // 409 regle metier violee (email deja utilise, trajet complet, delai de 24 h depasse...).
     @ExceptionHandler(BusinessRuleException.class)
     @ResponseStatus(HttpStatus.CONFLICT) // 409
-    public ErrorResponse handleBusinessRule(
+    public ProblemDetail handleBusinessRule(
             BusinessRuleException ex, WebRequest request) {
 
+        log.warn("Regle metier refusee : {}", ex.getMessage());
         return buildTheError(ex, HttpStatus.CONFLICT.value(), request);
     }
 
-    // Gere les contraintes de la base de donnees, Exemple: contrainte UNIQUE ou NOT NULL.
+    // 409 contrainte de la base violee (UNIQUE, NOT NULL...)
     @ExceptionHandler(DataIntegrityViolationException.class)
     @ResponseStatus(HttpStatus.CONFLICT) // 409
-    public ErrorResponse handleIntegrite(
+    public ProblemDetail handleIntegrite(
             DataIntegrityViolationException ex, WebRequest request) {
 
-        return buildTheError(ex, HttpStatus.CONFLICT.value(), request);
+        log.error("Violation de contrainte en base", ex);
+        return buildTheError("Operation impossible : une contrainte de donnees n'est pas respectee",
+                HttpStatus.CONFLICT.value(), request);
     }
 
-    // Gere les exceptions globales qui ne sont pas traitees par les autres methodes.
-
+    // 500 filet de securite pour toutes les erreurs non prevues (bug, NullPointerException...)
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR) // 500
-    public ErrorResponse handleInterne(
+    public ProblemDetail handleInterne(
             Exception ex, WebRequest request) {
 
-        return buildTheError(ex, HttpStatus.INTERNAL_SERVER_ERROR.value(), request);
+        log.error("Erreur interne", ex);
+        return buildTheError("Une erreur interne est survenue",
+                HttpStatus.INTERNAL_SERVER_ERROR.value(), request);
     }
 
-   // construire une reponse
-    private ErrorResponse buildTheError(
-            Exception ex, int status, WebRequest request) {
+    // prend le message directement depuis l'exception, puis appelle la version complete.
+    private ProblemDetail buildTheError(Exception ex, int status, WebRequest request) {
+        return buildTheError(ex.getMessage(), status, request);
+    }
 
-        return ErrorResponse.builder()
-                .timestamp(new Date())
-                .statusCode(status)
-                .message(ex.getMessage())
-                .path(request.getDescription(false))
-                .build();
+    // Construit la reponse JSON unique de tout le projet (utilisee par tous les handlers).
+    private ProblemDetail buildTheError(String message, int status, WebRequest request) {
+        HttpStatus httpStatus = HttpStatus.valueOf(status);
+
+        // ProblemDetail : classe de Spring
+        // forStatusAndDetail remplit "status" (code HTTP) et "detail" (message explicatif).
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(httpStatus, message);
+
+        // title = type d'erreur (ex : "Bad Request", "Not Found", "Conflict")
+        problem.setTitle(httpStatus.getReasonPhrase());
+
+        // setProperty : ajoute un champ personnalise au JSON.
+        problem.setProperty("timestamp", Instant.now());
+
+        // request.getDescription(false) renvoie "uri=/api/v1/..." : on enleve le prefixe "uri="
+        //problem.setProperty("path", request.getDescription(false).replace("uri=", ""));
+        return problem;
     }
 }
