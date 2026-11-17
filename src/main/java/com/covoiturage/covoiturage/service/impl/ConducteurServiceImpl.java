@@ -1,4 +1,4 @@
-package com.covoiturage.covoiturage.service;
+package com.covoiturage.covoiturage.service.impl;
 
 import com.covoiturage.covoiturage.dto.conducteur.ConducteurRequest;
 import com.covoiturage.covoiturage.dto.conducteur.ConducteurResponse;
@@ -7,7 +7,8 @@ import com.covoiturage.covoiturage.exception.ResourceNotFoundException;
 import com.covoiturage.covoiturage.mapper.conducteur.ConducteurMapper;
 import com.covoiturage.covoiturage.model.Conducteur;
 import com.covoiturage.covoiturage.repository.ConducteurRepository;
-import com.covoiturage.covoiturage.service.impl.ConducteurService;
+import com.covoiturage.covoiturage.service.ConducteurService;
+import com.covoiturage.covoiturage.util.PasswordUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,7 @@ public class ConducteurServiceImpl implements ConducteurService {
 
     private final ConducteurRepository conducteurRepository;
     private final ConducteurMapper conducteurMapper;
+    private final PasswordUtils passwordUtils;
 
 
     @Override
@@ -34,14 +36,19 @@ public class ConducteurServiceImpl implements ConducteurService {
         String numeroPermis = request.numeroPermis().trim();
 
         if (conducteurRepository.existsByEmailIgnoreCase(email)){
-            throw new BusinessRuleException("Un conducteur avec le numero de permis numeroPermis existe deja!!");
+            throw new BusinessRuleException("Un conducteur avec l'email " + email + " existe deja!!");
         }
         if (conducteurRepository.existsByNumeroPermis(numeroPermis)){
             throw new BusinessRuleException("Un conducteur avec le numero de permis " + numeroPermis + " existe deja!!");
         }
+        String salt = passwordUtils.generateSalt();
+        String hashPassword = passwordUtils.hashPassword(request.password(),salt);
+
         Conducteur conducteur = conducteurMapper.toEntity(request);
         conducteur.setEmail(email);
         conducteur.setNumeroPermis(numeroPermis);
+        conducteur.setSalt(salt);
+        conducteur.setPassword(hashPassword);
 
         Conducteur sauvegarde = conducteurRepository.save(conducteur);
         log.info("conducteur cree : id{}",sauvegarde.getId());
@@ -75,6 +82,11 @@ public class ConducteurServiceImpl implements ConducteurService {
         conducteurMapper.updateEntity(request, conducteur);
         conducteur.setEmail(email);
         conducteur.setNumeroPermis(numeroPermis);
+
+        String salt = passwordUtils.generateSalt();
+        conducteur.setSalt(salt);
+        conducteur.setPassword(passwordUtils.hashPassword(request.password(), salt));
+
         Conducteur sauvegarder = conducteurRepository.save(conducteur);
         log.info("Conducteur modifie : id{}",sauvegarder.getId());
         return conducteurMapper.toResponse(sauvegarder);

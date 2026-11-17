@@ -28,7 +28,10 @@ public record ConducteurRequest(
 
         @NotBlank(message = "Le numero de permis est obligatoire")
         @Size(max = 30, message = "Le numero de permis ne doit pas depasser 30 caracteres")
-        String numeroPermis
+        String numeroPermis,
 
+        @NotBlank(message = "le mot de pass est oblegatoire")
+        @Size(min = 8,message = "8 caracteres minimun")
+        String password
 ) {
 }

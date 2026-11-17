@@ -2,9 +2,10 @@ package com.covoiturage.covoiturage.controller;
 
 import com.covoiturage.covoiturage.dto.conducteur.ConducteurRequest;
 import com.covoiturage.covoiturage.dto.conducteur.ConducteurResponse;
-import com.covoiturage.covoiturage.service.impl.ConducteurService;
+import com.covoiturage.covoiturage.service.ConducteurService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -20,12 +21,10 @@ public class ConducteurController {
     private final ConducteurService conducteurService;
 
     @PostMapping
-    public ResponseEntity<ConducteurResponse> creer(@Valid @RequestBody ConducteurRequest request) {
-          ConducteurResponse cree = conducteurService.creer(request);
-          URI location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(cree.id()).toUri();
-        return ResponseEntity.created(location).body(cree);
+    @ResponseStatus(HttpStatus.CREATED)
+    public ConducteurResponse creer(@Valid @RequestBody ConducteurRequest request) {
+        return conducteurService.creer(request);
     }
-
 
     @GetMapping
     public List<ConducteurResponse> lister() {

@@ -1,4 +1,4 @@
-package com.covoiturage.covoiturage.service.impl;
+package com.covoiturage.covoiturage.service;
 
 import com.covoiturage.covoiturage.dto.conducteur.ConducteurRequest;
 import com.covoiturage.covoiturage.dto.conducteur.ConducteurResponse;

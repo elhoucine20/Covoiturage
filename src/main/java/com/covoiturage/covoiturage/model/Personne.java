@@ -2,6 +2,7 @@ package com.covoiturage.covoiturage.model;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.SuperBuilder;
 
@@ -9,6 +10,7 @@ import lombok.SuperBuilder;
 @Getter
 @Setter
 @SuperBuilder
+@NoArgsConstructor
 public abstract class Personne {
 
     @Id
@@ -27,4 +29,9 @@ public abstract class Personne {
     @Column(nullable = false, length = 20)
     private String telephone;
 
+    @Column(nullable = false)
+    private String password;
+
+    @Column(nullable = false)
+    private String salt;
 }
