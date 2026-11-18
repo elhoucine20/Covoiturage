@@ -12,8 +12,10 @@ import com.covoiturage.covoiturage.model.Conducteur;
 import com.covoiturage.covoiturage.model.PointArret;
 import com.covoiturage.covoiturage.model.Trajet;
 import com.covoiturage.covoiturage.model.Vehicule;
+import com.covoiturage.covoiturage.model.enums.StatutReservation;
 import com.covoiturage.covoiturage.model.enums.StatutTrajet;
 import com.covoiturage.covoiturage.repository.ConducteurRepository;
+import com.covoiturage.covoiturage.repository.ReservationRepository;
 import com.covoiturage.covoiturage.repository.TrajetRepository;
 import com.covoiturage.covoiturage.repository.VehiculeRepository;
 import com.covoiturage.covoiturage.service.TrajetService;
@@ -41,6 +43,7 @@ public class TrajetServiceImpl implements TrajetService {
     private final VehiculeRepository vehiculeRepository;
     private final TrajetMapper trajetMapper;
 
+    private final ReservationRepository reservationRepository;
 
     @Override
     @Transactional
@@ -137,9 +140,10 @@ public class TrajetServiceImpl implements TrajetService {
         return point;
     }
 
-    // Cette methode sera la seule a modifier.
+    // les places restantes
     private int calculerPlacesRestantes(Trajet trajet) {
-        return trajet.getPlacesProposees();
+        Long reservees = reservationRepository.sommePlacesParTrajetEtStatut(trajet.getId(), StatutReservation.CONFIRMEE);
+        return Math.toIntExact(trajet.getPlacesProposees() - reservees);
     }
 
     private Conducteur chercherConducteur(Long id) {

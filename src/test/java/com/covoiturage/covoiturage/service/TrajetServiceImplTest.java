@@ -14,6 +14,7 @@ import com.covoiturage.covoiturage.model.Trajet;
 import com.covoiturage.covoiturage.model.Vehicule;
 import com.covoiturage.covoiturage.model.enums.StatutTrajet;
 import com.covoiturage.covoiturage.repository.ConducteurRepository;
+import com.covoiturage.covoiturage.repository.ReservationRepository;
 import com.covoiturage.covoiturage.repository.TrajetRepository;
 import com.covoiturage.covoiturage.repository.VehiculeRepository;
 import com.covoiturage.covoiturage.service.impl.TrajetServiceImpl;
@@ -52,6 +53,9 @@ class TrajetServiceImplTest {
     private VehiculeRepository vehiculeRepository;
     @Mock
     private TrajetMapper trajetMapper;
+
+    @Mock
+    private ReservationRepository reservationRepository;
 
     @InjectMocks
     private TrajetServiceImpl trajetService;

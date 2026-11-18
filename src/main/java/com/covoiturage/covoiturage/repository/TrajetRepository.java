@@ -1,7 +1,9 @@
 package com.covoiturage.covoiturage.repository;
 
 import com.covoiturage.covoiturage.model.Trajet;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -17,4 +19,10 @@ public interface TrajetRepository extends JpaRepository<Trajet, Long> {
             where t.id = :id
             """)
     Optional<Trajet> findDetailById(@Param("id") Long id);
+
+
+    // for republication
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select t from Trajet t where t.id = :id")
+    Optional<Trajet> findByIdForUpdate(@Param("id") Long id);
 }
