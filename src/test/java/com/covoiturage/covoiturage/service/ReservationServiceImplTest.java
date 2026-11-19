@@ -117,14 +117,11 @@ class ReservationServiceImplTest {
         return new ReservationRequest(1L, 5L, pointMonteeId, pointDescenteId, places);
     }
 
-    // Programme les deux recherches communes a presque tous les tests de "reserver" :
-    // le passager 1 et le trajet 5 (charge avec le VERROU : findByIdForUpdate)
     private void preparerPassagerEtTrajet() {
         when(passagerRepository.findById(1L)).thenReturn(Optional.of(salma));
         when(trajetRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(trajet));
     }
 
-    // Programme la sauvegarde : save() renvoie l'objet recu, le mapper renvoie une reponse bidon
     private ReservationResponse preparerSauvegarde() {
         ReservationResponse reponse = new ReservationResponse(20L, 1L, 5L, "Settat", "Marrakech",
                 1, new BigDecimal("50.00"), LocalDateTime.now(), StatutReservation.CONFIRMEE);
@@ -133,16 +130,14 @@ class ReservationServiceImplTest {
         return reponse;
     }
 
-    // Programme les 3 lectures de "annuler" : id du trajet, trajet verrouille, reservation
     private void preparerAnnulation(Reservation reservation) {
         when(reservationRepository.findTrajetIdById(20L)).thenReturn(Optional.of(5L));
         when(trajetRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(trajet));
         when(reservationRepository.findById(20L)).thenReturn(Optional.of(reservation));
     }
 
-    // ---------- reserver : cas nominaux (scenarios 1 et 3 du brief) ----------
+    // reserver
 
-    // Scenario 1 : Salma reserve 1 place Settat -> Marrakech : 120 - 70 = 50 DH, le trajet reste PUBLIE
     @Test
     void reserver_nominal_calculeLeMontantEtLaisseLeTrajetPublie() {
         preparerPassagerEtTrajet();
@@ -150,7 +145,7 @@ class ReservationServiceImplTest {
         when(reservationRepository.existsByPassagerIdAndTrajetIdAndStatut(1L, 5L, StatutReservation.CONFIRMEE))
                 .thenReturn(false);
         when(reservationRepository.sommePlacesParTrajetEtStatut(5L, StatutReservation.CONFIRMEE))
-                .thenReturn(0L); // aucune place reservee pour l'instant -> 3 restantes
+                .thenReturn(0L);
 
         ReservationResponse resultat = reservationService.reserver(requete(103L, 104L, 1));
 
@@ -158,7 +153,6 @@ class ReservationServiceImplTest {
         verify(reservationRepository).save(captor.capture());
         Reservation sauvegarde = captor.getValue();
 
-        // BigDecimal.equals tient compte de l'echelle : "50.00" verifie bien les 2 decimales du brief
         assertThat(sauvegarde.getMontantTotal()).isEqualTo(new BigDecimal("50.00"));
         assertThat(sauvegarde.getStatut()).isEqualTo(StatutReservation.CONFIRMEE);
         assertThat(sauvegarde.getNombrePlaces()).isEqualTo(1);
@@ -169,14 +163,12 @@ class ReservationServiceImplTest {
         assertThat(sauvegarde.getPointDescente().getId()).isEqualTo(104L);
         assertThat(trajet.getStatut()).isEqualTo(StatutTrajet.PUBLIE); // 2 places restantes
 
-        // Concurrence : on doit utiliser la lecture VERROUILLEE, pas le findById classique
         verify(trajetRepository).findByIdForUpdate(5L);
         verify(trajetRepository, never()).findById(any());
 
         assertThat(resultat).isEqualTo(reponse);
     }
 
-    // Scenario 3 : Karim reserve 2 places Casablanca -> Marrakech : (120 - 40) x 2 = 160 DH, le trajet devient COMPLET
     @Test
     void reserver_derniereplace_trajetDevientComplet() {
         preparerPassagerEtTrajet();
@@ -191,11 +183,10 @@ class ReservationServiceImplTest {
         ArgumentCaptor<Reservation> captor = ArgumentCaptor.forClass(Reservation.class);
         verify(reservationRepository).save(captor.capture());
         assertThat(captor.getValue().getMontantTotal()).isEqualTo(new BigDecimal("160.00"));
-        // 2 restantes - 2 reservees = 0 : transition automatique PUBLIE -> COMPLET
         assertThat(trajet.getStatut()).isEqualTo(StatutTrajet.COMPLET);
     }
 
-    // ---------- reserver : regles refusees ----------
+    // reserver
 
     @Test
     void reserver_passagerInexistant_lanceResourceNotFoundException() {
@@ -221,8 +212,6 @@ class ReservationServiceImplTest {
         verify(reservationRepository, never()).save(any());
     }
 
-    // @ParameterizedTest + @EnumSource : le MEME test est execute une fois par statut liste.
-    // Scenario 4 du brief (trajet COMPLET -> 409) + les statuts TERMINE et ANNULE : aucun ne permet de reserver.
     @ParameterizedTest
     @EnumSource(value = StatutTrajet.class, names = {"COMPLET", "TERMINE", "ANNULE"})
     void reserver_trajetNonPublie_lanceBusinessRuleException(StatutTrajet statut) {
@@ -240,7 +229,6 @@ class ReservationServiceImplTest {
     void reserver_pointHorsDuTrajet_lanceInvalidRequestException() {
         preparerPassagerEtTrajet();
 
-        // 999 n'est pas un point de ce trajet (c'est par exemple un point d'un autre trajet)
         assertThatThrownBy(() -> reservationService.reserver(requete(999L, 104L, 1)))
                 .isInstanceOf(InvalidRequestException.class)
                 .hasMessageContaining("n'appartient pas au trajet");
@@ -248,7 +236,6 @@ class ReservationServiceImplTest {
         verify(reservationRepository, never()).save(any());
     }
 
-    // Scenario 6 : Imane monte a Marrakech et descend a Settat -> 400
     @Test
     void reserver_monteeApresDescente_lanceInvalidRequestException() {
         preparerPassagerEtTrajet();
@@ -291,7 +278,6 @@ class ReservationServiceImplTest {
         when(reservationRepository.sommePlacesParTrajetEtStatut(5L, StatutReservation.CONFIRMEE))
                 .thenReturn(2L); // 3 proposees - 2 reservees = 1 restante
 
-        // on demande 2 places alors qu'il n'en reste qu'une
         assertThatThrownBy(() -> reservationService.reserver(requete(103L, 104L, 2)))
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("il reste 1 place");
@@ -299,9 +285,7 @@ class ReservationServiceImplTest {
         verify(reservationRepository, never()).save(any());
     }
 
-    // ---------- annuler ----------
-
-    // Scenario 5 : Karim annule 3 jours avant le depart -> ANNULEE
+    // annuler
     @Test
     void annuler_nominal_passeLaReservationAAnnulee() {
         Reservation reservation = reservation(salma, trajet, StatutReservation.CONFIRMEE);
@@ -310,10 +294,9 @@ class ReservationServiceImplTest {
         reservationService.annuler(20L, 1L);
 
         assertThat(reservation.getStatut()).isEqualTo(StatutReservation.ANNULEE);
-        assertThat(trajet.getStatut()).isEqualTo(StatutTrajet.PUBLIE); // il etait deja PUBLIE : inchange
+        assertThat(trajet.getStatut()).isEqualTo(StatutTrajet.PUBLIE); // il etait deja PUBLIE
     }
 
-    // Scenario 5 (suite) : le trajet COMPLET redevient PUBLIE car une place se libere
     @Test
     void annuler_trajetComplet_leTrajetRedevientPublie() {
         trajet.setStatut(StatutTrajet.COMPLET);
@@ -348,7 +331,6 @@ class ReservationServiceImplTest {
                 .hasMessageContaining("deja annulee");
     }
 
-    // Scenario 10 : Salma annule 2 heures avant le depart -> 409 (delai de 24 h depasse)
     @Test
     void annuler_moinsDe24hAvantLeDepart_lanceBusinessRuleException() {
         trajet.setDateDepart(LocalDateTime.now().plusHours(2));
@@ -370,11 +352,10 @@ class ReservationServiceImplTest {
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("20");
 
-        verifyNoInteractions(trajetRepository); // pas de trajet a verrouiller
+        verifyNoInteractions(trajetRepository);
     }
 
-    // ---------- consultation ----------
-
+    // consultation
     @Test
     void listerParPassager_nominal_renvoieSesReservations() {
         Reservation reservation = reservation(salma, trajet, StatutReservation.CONFIRMEE);

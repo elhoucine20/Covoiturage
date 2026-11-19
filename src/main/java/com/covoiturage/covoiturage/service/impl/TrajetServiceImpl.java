@@ -2,6 +2,7 @@ package com.covoiturage.covoiturage.service.impl;
 
 
 import com.covoiturage.covoiturage.dto.trajet.PointArretRequest;
+import com.covoiturage.covoiturage.dto.trajet.TrajetRechercheResponse;
 import com.covoiturage.covoiturage.dto.trajet.TrajetRequest;
 import com.covoiturage.covoiturage.dto.trajet.TrajetResponse;
 import com.covoiturage.covoiturage.exception.ForbiddenActionException;
@@ -21,11 +22,14 @@ import com.covoiturage.covoiturage.repository.VehiculeRepository;
 import com.covoiturage.covoiturage.service.TrajetService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
@@ -44,6 +48,9 @@ public class TrajetServiceImpl implements TrajetService {
     private final TrajetMapper trajetMapper;
 
     private final ReservationRepository reservationRepository;
+
+    private static final BigDecimal PRIX_MAX_PAR_DEFAUT = new BigDecimal("99999999.99");
+    private static final int TAILLE_PAGE_MAX = 50;
 
     @Override
     @Transactional
@@ -92,9 +99,60 @@ public class TrajetServiceImpl implements TrajetService {
         return trajetMapper.toResponse(trajet, calculerPlacesRestantes(trajet));
     }
 
+    @Override
+    public Page<TrajetRechercheResponse> rechercher(String villeDepart, String villeArrivee, LocalDate date, BigDecimal prixMax, int page, int size){
+
+        // les villes
+        if (villeDepart.isBlank() || villeArrivee.isBlank()){
+            throw new InvalidRequestException("Les villes de depart et d'arrivee sont oblegatoires");
+        }
+        // prix
+        if (prixMax != null && prixMax.signum() < 0){
+            throw new InvalidRequestException("Le prix maximal ne peut pas etre negatif");
+        }
+
+        // pagination
+        if (page < 0 || size < 1){
+            throw new InvalidRequestException("Pagination invalid page >= 0 et size >= 1");
+        }
+
+        String villeDepartNormalisee = villeDepart.trim().toLowerCase(Locale.ROOT);
+        String villeArriveeNormalisee = villeArrivee.trim().toLowerCase(Locale.ROOT);
+
+        PageRequest pageRequest = PageRequest.of(page,Math.min(size,TAILLE_PAGE_MAX));
+        Page<Trajet> resultes = trajetRepository.rechercher(
+                villeDepartNormalisee,
+                villeArriveeNormalisee,
+                date.atStartOfDay(),               // debut du jour
+                date.plusDays(1).atStartOfDay(),   // fin du jour
+                prixMax != null ? prixMax : PRIX_MAX_PAR_DEFAUT,
+                pageRequest);
+
+         log.info("Recherche {} -> {} le {} : {} resultas ",villeDepart.trim(),villeArrivee.trim(),date,resultes.getTotalElements());
+
+       // return resultes.map(trajet -> trajetMapper.toResponse(calculerPlacesRestantes(trajet),trajet));
+        return resultes.map(trajet -> construireResultat(trajet, villeDepartNormalisee, villeArriveeNormalisee));
+    }
+
+    private TrajetRechercheResponse construireResultat(Trajet trajet,String villeDepart,String villeArrivee){
+        PointArret depart = trouverPoint(trajet,villeDepart);
+        PointArret arrivee = trouverPoint(trajet,villeArrivee);
+        return new TrajetRechercheResponse(trajet.getId(),
+                trajet.getConducteur().getPrenom()+" "+trajet.getConducteur().getNom(),
+                               depart.getVille(),
+                               arrivee.getVille(),
+                               depart.getHeurePassage(),
+                               arrivee.getHeurePassage(),
+                               arrivee.getPrixDepuisDepart().subtract(depart.getPrixDepuisDepart()),
+                              (long) calculerPlacesRestantes(trajet));
+    }
+    private PointArret trouverPoint(Trajet trajet,String normaliseVille){
+        return trajet.getPointsArret().stream().
+                filter(p->p.getVille().trim().toLowerCase(Locale.ROOT).equals(normaliseVille)).findFirst().orElseThrow(() ->
+                        new IllegalStateException("Point introuvable pour la ville " + normaliseVille + " (trajet " + trajet.getId() + ")"));
+    }
 
     // helpers
-
     private void validerParcours(List<PointArretRequest> points) {
         PointArretRequest premier = points.get(0);
 
@@ -129,7 +187,7 @@ public class TrajetServiceImpl implements TrajetService {
         }
     }
 
-    // Transforme un point recu (DTO) en entite, avec son ordre
+    // Transforme un point recu en entite, avec son ordre
     private PointArret construirePointArret(PointArretRequest request, int ordre) {
         PointArret point = new PointArret();
         point.setVille(request.ville().trim());

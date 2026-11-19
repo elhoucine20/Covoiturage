@@ -34,7 +34,7 @@ import java.util.List;
 public class ReservationServiceImpl implements ReservationService {
 
     // passager annule jusque a 24 heures avant le depart
-    private static final long DELAI_ANNULATION_HEURES = 24;
+    private static final long DUREE_ANNULATION = 24;
 
     private final ReservationRepository reservationRepository;
     private final PassagerRepository passagerRepository;
@@ -117,7 +117,7 @@ public class ReservationServiceImpl implements ReservationService {
         }
 
         // delai de 24h deppaser
-        LocalDateTime limite = trajet.getDateDepart().minusHours(DELAI_ANNULATION_HEURES);
+        LocalDateTime limite = trajet.getDateDepart().minusHours(DUREE_ANNULATION);
         if (LocalDateTime.now().isAfter(limite)){
             throw new BusinessRuleException("Annulation impossible le delai de 24 h avant le depart est depasse");
         }

@@ -26,11 +26,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-// Active Mockito dans JUnit 5 : cree les @Mock et les injecte dans @InjectMocks
+// Active Mockito dans JUnit cree les @Mock et les injecte dans @InjectMocks
 @ExtendWith(MockitoExtension.class)
 class ConducteurServiceImplTest {
 
-    // Doublures : aucune vraie base de donnees n'est utilisee
     @Mock
     private ConducteurRepository conducteurRepository;
     @Mock
@@ -38,13 +37,11 @@ class ConducteurServiceImplTest {
     @Mock
     private PasswordUtils passwordUtils;
 
-    // Le vrai service, construit avec les 3 doublures ci-dessus
     @InjectMocks
     private ConducteurServiceImpl conducteurService;
 
     private ConducteurRequest request;
 
-    // Execute avant chaque test : une requete de base avec un email "sale"
     @BeforeEach
     void setUp() {
         request = new ConducteurRequest(

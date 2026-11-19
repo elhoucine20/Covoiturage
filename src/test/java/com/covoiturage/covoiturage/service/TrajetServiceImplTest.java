@@ -1,6 +1,7 @@
 package com.covoiturage.covoiturage.service;
 
 import com.covoiturage.covoiturage.dto.trajet.PointArretRequest;
+import com.covoiturage.covoiturage.dto.trajet.TrajetRechercheResponse;
 import com.covoiturage.covoiturage.dto.trajet.TrajetRequest;
 import com.covoiturage.covoiturage.dto.trajet.TrajetResponse;
 import com.covoiturage.covoiturage.exception.ForbiddenActionException;
@@ -12,21 +13,25 @@ import com.covoiturage.covoiturage.model.PointArret;
 import com.covoiturage.covoiturage.model.enums.StatutTrajet;
 import com.covoiturage.covoiturage.model.Trajet;
 import com.covoiturage.covoiturage.model.Vehicule;
-import com.covoiturage.covoiturage.model.enums.StatutTrajet;
 import com.covoiturage.covoiturage.repository.ConducteurRepository;
 import com.covoiturage.covoiturage.repository.ReservationRepository;
 import com.covoiturage.covoiturage.repository.TrajetRepository;
 import com.covoiturage.covoiturage.repository.VehiculeRepository;
 import com.covoiturage.covoiturage.service.impl.TrajetServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -55,7 +60,11 @@ class TrajetServiceImplTest {
     private TrajetMapper trajetMapper;
 
     @Mock
+    private TrajetRechercheResponse trajetRechercheResponse;
+
+    @Mock
     private ReservationRepository reservationRepository;
+
 
     @InjectMocks
     private TrajetServiceImpl trajetService;
@@ -72,7 +81,7 @@ class TrajetServiceImplTest {
         vehicule = vehicule(10L, conducteur, 4);
     }
 
-    // ---------- methodes utilitaires du test (helpers) ----------
+    // helpers
 
     private Conducteur conducteur(Long id) {
         Conducteur c = new Conducteur();
@@ -88,7 +97,6 @@ class TrajetServiceImplTest {
         return v;
     }
 
-    // Un point d'arret de la requete (le prix est donne en texte pour eviter les erreurs de double)
     private PointArretRequest point(String ville, LocalDateTime heure, String prix) {
         return new PointArretRequest(ville, heure, new BigDecimal(prix));
     }
@@ -122,9 +130,10 @@ class TrajetServiceImplTest {
         verify(trajetRepository, never()).save(any());
     }
 
-    // ---------- publier : cas nominal ----------
+    //publier
 
     @Test
+    @DisplayName("publier_departDansLePasse_lanceInvalidRequestException")
     void publier_nominal_deduitVillesDateOrdreEtStatut() {
         preparerConducteurEtVehicule();
         when(trajetRepository.save(any(Trajet.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -168,8 +177,6 @@ class TrajetServiceImplTest {
         assertThat(resultat).isEqualTo(reponse);
     }
 
-    // ---------- publier : ressources et droits ----------
-
     @Test
     void publier_conducteurInexistant_lanceResourceNotFoundException() {
         when(conducteurRepository.findById(1L)).thenReturn(Optional.empty());
@@ -192,7 +199,7 @@ class TrajetServiceImplTest {
         verify(trajetRepository, never()).save(any());
     }
 
-    // Scenario 8 du brief : Hamid publie avec le vehicule d'un autre conducteur -> 403
+    //
     @Test
     void publier_vehiculeDunAutreConducteur_lanceForbiddenActionException() {
         Vehicule vehiculeDunAutre = vehicule(10L, conducteur(2L), 4);
@@ -205,7 +212,7 @@ class TrajetServiceImplTest {
         verify(trajetRepository, never()).save(any());
     }
 
-    // Scenario 7 du brief : 5 places proposees pour un vehicule de capacite 4 -> 400
+    //
     @Test
     void publier_placesSuperieuresALaCapacite_lanceInvalidRequestException() {
         preparerConducteurEtVehicule();
@@ -213,9 +220,9 @@ class TrajetServiceImplTest {
         assertRefuse(requete(5, pointsValides()), "capacite");
     }
 
-    // ---------- publier : regles du parcours (un test par regle) ----------
 
     @Test
+    @DisplayName("publier_departDansLePasse_lanceInvalidRequestException")
     void publier_departDansLePasse_lanceInvalidRequestException() {
         preparerConducteurEtVehicule();
         List<PointArretRequest> points = pointsValides();
@@ -237,7 +244,6 @@ class TrajetServiceImplTest {
     void publier_villeRepetee_lanceInvalidRequestException() {
         preparerConducteurEtVehicule();
         List<PointArretRequest> points = pointsValides();
-        // " RABAT " reapparait en 3e position : teste aussi la normalisation (trim + minuscules)
         points.set(2, point(" RABAT ", depart.plusMinutes(135), "70"));
 
         assertRefuse(requete(3, points), "plusieurs fois");
@@ -247,7 +253,6 @@ class TrajetServiceImplTest {
     void publier_heuresNonStrictementCroissantes_lanceInvalidRequestException() {
         preparerConducteurEtVehicule();
         List<PointArretRequest> points = pointsValides();
-        // meme heure que le point precedent (Casablanca) : "strictement" croissantes -> refuse
         points.set(2, point("Settat", depart.plusMinutes(75), "70"));
 
         assertRefuse(requete(3, points), "heures de passage");
@@ -257,14 +262,13 @@ class TrajetServiceImplTest {
     void publier_prixNonStrictementCroissants_lanceInvalidRequestException() {
         preparerConducteurEtVehicule();
         List<PointArretRequest> points = pointsValides();
-        // meme prix que le point precedent (40) : refuse
+        // meme prix que le point precedent
         points.set(2, point("Settat", depart.plusMinutes(135), "40"));
 
         assertRefuse(requete(3, points), "prix depuis le depart");
     }
 
-    // ---------- trouverParId ----------
-
+    //trouverParId
     @Test
     void trouverParId_nominal_utiliseLaRequeteAvecJoinFetch() {
         Trajet trajet = new Trajet();
@@ -273,13 +277,12 @@ class TrajetServiceImplTest {
         TrajetResponse reponse = new TrajetResponse(5L, null, null, "Rabat", "Marrakech",
                 depart, 3, 3, StatutTrajet.PUBLIE, List.of());
         when(trajetRepository.findDetailById(5L)).thenReturn(Optional.of(trajet));
-        // Quand on utilise un matcher (eq, anyInt), TOUS les arguments doivent etre des matchers
         when(trajetMapper.toResponse(eq(trajet), anyInt())).thenReturn(reponse);
 
         TrajetResponse resultat = trajetService.trouverParId(5L);
 
         assertThat(resultat).isEqualTo(reponse);
-        // Le detail passe par findDetailById (join fetch, une seule requete SQL : pas de N+1)
+        // Le detail passe par findDetailById
         verify(trajetRepository).findDetailById(5L);
     }
 
@@ -290,5 +293,54 @@ class TrajetServiceImplTest {
         assertThatThrownBy(() -> trajetService.trouverParId(99L))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("99");
+    }
+
+    // rechercher
+    // Un point d'arret ENTITE (le helper point(...) existant construit un DTO de requete)
+    private PointArret pointEntite(String ville, LocalDateTime heure, String prix) {
+        PointArret p = new PointArret();
+        p.setVille(ville);
+        p.setHeurePassage(heure);
+        p.setPrixDepuisDepart(new BigDecimal(prix));
+        return p;
+    }
+
+    private final LocalDate dateRecherche = LocalDate.now().plusDays(3);
+            //LocalDate.of(2026, 11, 25);
+    @Test
+    void rechercher_nominal_construitLeResultatAvecLePrixDuSegment() {
+        Conducteur hamid = conducteur(1L);
+        hamid.setPrenom("Hamid");
+        hamid.setNom("Alaoui");
+        Trajet trajet = new Trajet();
+        trajet.setId(5L);
+        trajet.setConducteur(hamid);
+        trajet.setPlacesProposees(3);
+        trajet.ajouterPointArret(pointEntite("Rabat", depart, "0"));
+        trajet.ajouterPointArret(pointEntite("Casablanca", depart.plusMinutes(75), "40"));
+        trajet.ajouterPointArret(pointEntite("Settat", depart.plusMinutes(135), "70"));
+        trajet.ajouterPointArret(pointEntite("Marrakech", depart.plusMinutes(270), "120"));
+
+        when(trajetRepository.rechercher(
+                eq("casablanca"), eq("settat"),
+                eq(dateRecherche.atStartOfDay()), eq(dateRecherche.plusDays(1).atStartOfDay()),
+                eq(new BigDecimal("99999999.99")),
+                eq(PageRequest.of(0, 10))))
+                .thenReturn(new PageImpl<>(List.of(trajet), PageRequest.of(0, 10), 1));
+        // reservationRepository (mock) renvoie 0 par defaut : 3 - 0 = 3 places restantes
+
+        Page<TrajetRechercheResponse> resultat = trajetService.rechercher(
+                " Casablanca ", "SETTAT", dateRecherche, null, 0, 10);
+
+        assertThat(resultat.getContent()).hasSize(1);
+        TrajetRechercheResponse r = resultat.getContent().get(0);
+        assertThat(r.trajetId()).isEqualTo(5L);
+        assertThat(r.conducteurName()).isEqualTo("Hamid Alaoui");
+        assertThat(r.villeMontee()).isEqualTo("Casablanca");
+        assertThat(r.villeDescente()).isEqualTo("Settat");
+        assertThat(r.heureMontee()).isEqualTo(depart.plusMinutes(75));
+        assertThat(r.prixSegment()).isEqualByComparingTo("30"); // 70 - 40
+        assertThat(r.placesRestantes()).isEqualTo(3L);
+        assertThat(resultat.getTotalElements()).isEqualTo(1);
     }
 }
