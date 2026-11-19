@@ -10,6 +10,7 @@ import com.covoiturage.covoiturage.mapper.vehicule.VehiculeMapper;
 import com.covoiturage.covoiturage.model.Conducteur;
 import com.covoiturage.covoiturage.model.Vehicule;
 import com.covoiturage.covoiturage.repository.ConducteurRepository;
+import com.covoiturage.covoiturage.repository.TrajetRepository;
 import com.covoiturage.covoiturage.repository.VehiculeRepository;
 import com.covoiturage.covoiturage.service.VehiculeService;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class VehiculeServiceImpl implements VehiculeService{
     private final ConducteurRepository conducteurRepository;
     private final VehiculeMapper vehiculeMapper;
 
+    private final TrajetRepository trajetRepository;
 
     @Override
     @Transactional
@@ -85,7 +87,10 @@ public class VehiculeServiceImpl implements VehiculeService{
     public void supprimer(Long id, Long conducteurId) {
         Vehicule vehicule = chercher(id);
         verifierProprietaire(vehicule, conducteurId);
-        //  quand Trajet existera, refuser (409) si le vehicule est utilise par un trajet
+        // si le vehicule exist dans un trajet
+        if (trajetRepository.existsByVehiculeId(id)) {
+            throw new BusinessRuleException("Suppression impossible le vehicule est associe a un trajet");
+        }
         vehiculeRepository.delete(vehicule);
         log.info("Vehicule supprime : id={}", id);
     }

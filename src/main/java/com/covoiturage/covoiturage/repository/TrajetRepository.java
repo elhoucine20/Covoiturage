@@ -51,4 +51,7 @@ public interface TrajetRepository extends JpaRepository<Trajet, Long> {
                                              @Param("finJour") LocalDateTime finJour,
                                              @Param("prixMax")BigDecimal prixMax,
                                              Pageable pageable);
+
+
+    boolean existsByVehiculeId(Long vehiculeId);
 }

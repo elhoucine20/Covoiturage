@@ -9,6 +9,7 @@ import com.covoiturage.covoiturage.mapper.vehicule.VehiculeMapper;
 import com.covoiturage.covoiturage.model.Conducteur;
 import com.covoiturage.covoiturage.model.Vehicule;
 import com.covoiturage.covoiturage.repository.ConducteurRepository;
+import com.covoiturage.covoiturage.repository.TrajetRepository;
 import com.covoiturage.covoiturage.repository.VehiculeRepository;
 import com.covoiturage.covoiturage.service.impl.VehiculeServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +40,9 @@ class VehiculeServiceImplTest {
     private ConducteurRepository conducteurRepository;
     @Mock
     private VehiculeMapper vehiculeMapper;
+
+    @Mock
+    private TrajetRepository trajetRepository;
 
     @InjectMocks
     private VehiculeServiceImpl vehiculeService;
@@ -213,5 +217,19 @@ class VehiculeServiceImplTest {
         vehiculeService.supprimer(10L, 1L);
 
         verify(vehiculeRepository).delete(existant);
+    }
+
+    // test suppresion de Vehicule ne pass pas si deja assoucie a un trajet
+    @Test
+    void supprimer_vehiculeAssocieAUnTrajet_lanceBusinessRuleException() {
+        Vehicule existant = vehicule(10L, conducteur(1L));
+        when(vehiculeRepository.findById(10L)).thenReturn(Optional.of(existant));
+        when(trajetRepository.existsByVehiculeId(10L)).thenReturn(true);
+
+        assertThatThrownBy(() -> vehiculeService.supprimer(10L, 1L))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("trajet");
+
+        verify(vehiculeRepository, never()).delete(any());
     }
 }
