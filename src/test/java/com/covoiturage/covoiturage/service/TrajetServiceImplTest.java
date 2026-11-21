@@ -4,6 +4,7 @@ import com.covoiturage.covoiturage.dto.trajet.PointArretRequest;
 import com.covoiturage.covoiturage.dto.trajet.TrajetRechercheResponse;
 import com.covoiturage.covoiturage.dto.trajet.TrajetRequest;
 import com.covoiturage.covoiturage.dto.trajet.TrajetResponse;
+import com.covoiturage.covoiturage.exception.BusinessRuleException;
 import com.covoiturage.covoiturage.exception.ForbiddenActionException;
 import com.covoiturage.covoiturage.exception.InvalidRequestException;
 import com.covoiturage.covoiturage.exception.ResourceNotFoundException;
@@ -69,7 +70,7 @@ class TrajetServiceImplTest {
     @InjectMocks
     private TrajetServiceImpl trajetService;
 
-    // Date de depart du trajet de test : toujours dans le futur (relative a "maintenant")
+    // Date de depart du trajet
     private final LocalDateTime depart = LocalDateTime.now().plusDays(5);
 
     private Conducteur conducteur;
@@ -101,8 +102,6 @@ class TrajetServiceImplTest {
         return new PointArretRequest(ville, heure, new BigDecimal(prix));
     }
 
-    // Le trajet de Hamid (brief) : Rabat 0 -> Casablanca 40 -> Settat 70 -> Marrakech 120.
-    // Renvoie une liste MODIFIABLE : chaque test d'erreur remplace UN seul point avec list.set(...)
     private List<PointArretRequest> pointsValides() {
         List<PointArretRequest> points = new ArrayList<>();
         points.add(point("Rabat", depart, "0"));
@@ -116,13 +115,11 @@ class TrajetServiceImplTest {
         return new TrajetRequest(1L, 10L, places, points);
     }
 
-    // Programme les deux recherches (conducteur 1 et vehicule 10), utilisees par la plupart des tests
     private void preparerConducteurEtVehicule() {
         when(conducteurRepository.findById(1L)).thenReturn(Optional.of(conducteur));
         when(vehiculeRepository.findById(10L)).thenReturn(Optional.of(vehicule));
     }
 
-    // Verifie qu'une requete invalide est refusee (400) ET que rien n'est sauvegarde
     private void assertRefuse(TrajetRequest requete, String fragmentDuMessage) {
         assertThatThrownBy(() -> trajetService.publier(requete))
                 .isInstanceOf(InvalidRequestException.class)
@@ -139,12 +136,11 @@ class TrajetServiceImplTest {
         when(trajetRepository.save(any(Trajet.class))).thenAnswer(inv -> inv.getArgument(0));
         TrajetResponse reponse = new TrajetResponse(1L, null, null, "Rabat", "Marrakech",
                 depart, 3, 3, StatutTrajet.PUBLIE, List.of());
-        // anyInt() : on ne fige pas le nombre de places restantes, car ce calcul changera
-        // quand les reservations existeront (le test ne casse pas pour autant)
+
         when(trajetMapper.toResponse(any(Trajet.class), anyInt())).thenReturn(reponse);
 
         List<PointArretRequest> points = pointsValides();
-        points.set(0, point(" Rabat ", depart, "0")); // espaces autour : teste le trim
+        points.set(0, point(" Rabat ", depart, "0"));
 
         TrajetResponse resultat = trajetService.publier(requete(3, points));
 
@@ -153,24 +149,21 @@ class TrajetServiceImplTest {
         Trajet sauvegarde = captor.getValue();
 
         assertThat(sauvegarde.getStatut()).isEqualTo(StatutTrajet.PUBLIE);
-        assertThat(sauvegarde.getVilleDepart()).isEqualTo("Rabat");        // premier point, sans espaces
-        assertThat(sauvegarde.getVilleArrivee()).isEqualTo("Marrakech");   // dernier point
-        assertThat(sauvegarde.getDateDepart()).isEqualTo(depart);          // heure du premier point
+        assertThat(sauvegarde.getVilleDepart()).isEqualTo("Rabat");
+        assertThat(sauvegarde.getVilleArrivee()).isEqualTo("Marrakech");
+        assertThat(sauvegarde.getDateDepart()).isEqualTo(depart);
         assertThat(sauvegarde.getPlacesProposees()).isEqualTo(3);
         assertThat(sauvegarde.getConducteur()).isSameAs(conducteur);
         assertThat(sauvegarde.getVehicule()).isSameAs(vehicule);
 
-        // extracting : extrait un champ de chaque element de la liste, pour le comparer d'un coup
+
         assertThat(sauvegarde.getPointsArret()).extracting(PointArret::getOrdre)
                 .containsExactly(0, 1, 2, 3);
         assertThat(sauvegarde.getPointsArret()).extracting(PointArret::getVille)
                 .containsExactly("Rabat", "Casablanca", "Settat", "Marrakech");
-        // setScale(2) : les prix sont stockes avec 2 decimales (BigDecimal.equals tient compte de l'echelle)
         assertThat(sauvegarde.getPointsArret()).extracting(PointArret::getPrixDepuisDepart)
                 .containsExactly(new BigDecimal("0.00"), new BigDecimal("40.00"),
                         new BigDecimal("70.00"), new BigDecimal("120.00"));
-        // allSatisfy : la condition doit etre vraie pour CHAQUE point. Ici : chaque point
-        // connait son trajet (c'est le role de la methode ajouterPointArret, sinon la cle etrangere serait vide)
         assertThat(sauvegarde.getPointsArret())
                 .allSatisfy(p -> assertThat(p.getTrajet()).isSameAs(sauvegarde));
 
@@ -184,7 +177,7 @@ class TrajetServiceImplTest {
         assertThatThrownBy(() -> trajetService.publier(requete(3, pointsValides())))
                 .isInstanceOf(ResourceNotFoundException.class);
 
-        verifyNoInteractions(vehiculeRepository); // le service s'arrete avant de chercher le vehicule
+        verifyNoInteractions(vehiculeRepository);
         verify(trajetRepository, never()).save(any());
     }
 
@@ -282,7 +275,6 @@ class TrajetServiceImplTest {
         TrajetResponse resultat = trajetService.trouverParId(5L);
 
         assertThat(resultat).isEqualTo(reponse);
-        // Le detail passe par findDetailById
         verify(trajetRepository).findDetailById(5L);
     }
 
@@ -296,7 +288,7 @@ class TrajetServiceImplTest {
     }
 
     // rechercher
-    // Un point d'arret ENTITE (le helper point(...) existant construit un DTO de requete)
+    // Un point d'arret
     private PointArret pointEntite(String ville, LocalDateTime heure, String prix) {
         PointArret p = new PointArret();
         p.setVille(ville);
@@ -306,7 +298,7 @@ class TrajetServiceImplTest {
     }
 
     private final LocalDate dateRecherche = LocalDate.now().plusDays(3);
-            //LocalDate.of(2026, 11, 25);
+
     @Test
     void rechercher_nominal_construitLeResultatAvecLePrixDuSegment() {
         Conducteur hamid = conducteur(1L);
@@ -327,7 +319,6 @@ class TrajetServiceImplTest {
                 eq(new BigDecimal("99999999.99")),
                 eq(PageRequest.of(0, 10))))
                 .thenReturn(new PageImpl<>(List.of(trajet), PageRequest.of(0, 10), 1));
-        // reservationRepository (mock) renvoie 0 par defaut : 3 - 0 = 3 places restantes
 
         Page<TrajetRechercheResponse> resultat = trajetService.rechercher(
                 " Casablanca ", "SETTAT", dateRecherche, null, 0, 10);
@@ -342,5 +333,52 @@ class TrajetServiceImplTest {
         assertThat(r.prixSegment()).isEqualByComparingTo("30"); // 70 - 40
         assertThat(r.placesRestantes()).isEqualTo(3L);
         assertThat(resultat.getTotalElements()).isEqualTo(1);
+    }
+
+    // Un trajet deja publie du conducteur 1
+    private Trajet trajetExistantSurPeriode(LocalDateTime debut, LocalDateTime fin) {
+        Trajet t = new Trajet();
+        t.setId(99L);
+        t.setConducteur(conducteur);
+        t.setStatut(StatutTrajet.PUBLIE);
+        t.setDateDepart(debut);
+        PointArret premierPoint = new PointArret();
+        premierPoint.setHeurePassage(debut);
+        PointArret dernierPoint = new PointArret();
+        dernierPoint.setHeurePassage(fin);
+        t.ajouterPointArret(premierPoint);
+        t.ajouterPointArret(dernierPoint);
+        return t;
+    }
+
+    // conductereur deja a un trajet
+    @Test
+    void publier_conducteurDejaOccupe_lanceBusinessRuleException() {
+        preparerConducteurEtVehicule();
+        // trajet existant : de depart+60 min a depart+240 min -> chevauche le nouveau
+        when(trajetRepository.findByConducteurIdAndStatutIn(eq(1L), any()))
+                .thenReturn(List.of(trajetExistantSurPeriode(depart.plusMinutes(60), depart.plusMinutes(240))));
+
+        assertThatThrownBy(() -> trajetService.publier(requete(3, pointsValides())))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("deja un trajet");
+
+        verify(trajetRepository, never()).save(any());
+    }
+
+    // Publie un trajet
+    @Test
+    void publier_trajetQuiCommenceQuandLePrecedentFinit_estAccepte() {
+        preparerConducteurEtVehicule();
+        when(trajetRepository.findByConducteurIdAndStatutIn(eq(1L), any()))
+                .thenReturn(List.of(trajetExistantSurPeriode(depart.minusHours(3), depart)));
+        when(trajetRepository.save(any(Trajet.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(trajetMapper.toResponse(any(Trajet.class), anyInt())).thenReturn(
+                new TrajetResponse(1L, null, null, "Rabat", "Marrakech",
+                        depart, 3, 3, StatutTrajet.PUBLIE, List.of()));
+
+        trajetService.publier(requete(3, pointsValides()));
+
+        verify(trajetRepository).save(any(Trajet.class));
     }
 }

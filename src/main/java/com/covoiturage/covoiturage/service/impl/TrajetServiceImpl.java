@@ -5,6 +5,7 @@ import com.covoiturage.covoiturage.dto.trajet.PointArretRequest;
 import com.covoiturage.covoiturage.dto.trajet.TrajetRechercheResponse;
 import com.covoiturage.covoiturage.dto.trajet.TrajetRequest;
 import com.covoiturage.covoiturage.dto.trajet.TrajetResponse;
+import com.covoiturage.covoiturage.exception.BusinessRuleException;
 import com.covoiturage.covoiturage.exception.ForbiddenActionException;
 import com.covoiturage.covoiturage.exception.InvalidRequestException;
 import com.covoiturage.covoiturage.exception.ResourceNotFoundException;
@@ -72,6 +73,8 @@ public class TrajetServiceImpl implements TrajetService {
         validerParcours(pointes);
         PointArretRequest premier = pointes.get(0);
         PointArretRequest dernier = pointes.get(pointes.size()-1);
+        // validation de eviter si le conductreur a deja un trajet
+        verifierDisponibiliteConducteur(conducteur.getId(),premier.heurePassage(),dernier.heurePassage());
         Trajet trajet = new Trajet();
         trajet.setConducteur(conducteur);
         trajet.setVehicule(vehicule);
@@ -213,5 +216,20 @@ public class TrajetServiceImpl implements TrajetService {
         return vehiculeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Vehicule introuvable avec l'identifiant " + id));
     }
+
+
+    //pour verification de si conducteur deja il ya une trajet dans cette heure
+    private void verifierDisponibiliteConducteur(Long conducteurId,LocalDateTime debut,LocalDateTime fin){
+        List<Trajet> trajetsActifs = trajetRepository.findByConducteurIdAndStatutIn(conducteurId,List.of(StatutTrajet.PUBLIE,StatutTrajet.COMPLET));
+        boolean isImpossible = trajetsActifs.stream().anyMatch(existant->{
+            List<PointArret> pointes = existant.getPointsArret();
+            LocalDateTime finExistant = pointes.get(pointes.size()-1).getHeurePassage();
+            return existant.getDateDepart().isBefore(fin) && finExistant.isAfter(debut);
+        });
+        if (isImpossible){
+            throw new BusinessRuleException("Le conducteur a deja un trajetsur cette periode");
+        }
+    }
+
 }
 

@@ -176,7 +176,7 @@ class ReservationServiceImplTest {
         when(reservationRepository.existsByPassagerIdAndTrajetIdAndStatut(1L, 5L, StatutReservation.CONFIRMEE))
                 .thenReturn(false);
         when(reservationRepository.sommePlacesParTrajetEtStatut(5L, StatutReservation.CONFIRMEE))
-                .thenReturn(1L); // Salma a deja pris 1 place -> il en reste 2
+                .thenReturn(1L);
 
         reservationService.reserver(requete(102L, 104L, 2));
 
@@ -394,7 +394,6 @@ class ReservationServiceImplTest {
         assertThat(resultat).containsExactly(reponse);
     }
 
-    // Un conducteur ne consulte que les reservations de SES trajets : le trajet 5 appartient au conducteur 1
     @Test
     void listerParTrajet_autreConducteur_lanceForbiddenActionException() {
         when(trajetRepository.findById(5L)).thenReturn(Optional.of(trajet));
@@ -402,7 +401,7 @@ class ReservationServiceImplTest {
         assertThatThrownBy(() -> reservationService.listerParTrajet(5L, 2L))
                 .isInstanceOf(ForbiddenActionException.class);
 
-        verifyNoInteractions(reservationRepository); // aucune reservation n'a ete lue
+        verifyNoInteractions(reservationRepository);
     }
 
     @Test

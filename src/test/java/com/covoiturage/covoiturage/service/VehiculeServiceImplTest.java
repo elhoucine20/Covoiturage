@@ -50,24 +50,22 @@ class VehiculeServiceImplTest {
     private VehiculeRequest request;
     private VehiculeResponse reponse;
 
-    // Avant chaque test : une requete avec une immatriculation "sale" (espaces + minuscule)
-    // pour verifier la normalisation, et la reponse attendue.
     @BeforeEach
     void setUp() {
         request = new VehiculeRequest("Dacia", "Logan", " 12345-a-6 ", "Blanche", 4, 1L);
         reponse = new VehiculeResponse(10L, "Dacia", "Logan", "12345-A-6", "Blanche", 4, 1L);
     }
 
-    // ---------- methodes utilitaires du test (helpers) ----------
+    // helpers
 
-    // Construit un conducteur avec un id (setId vient du @Setter de Personne)
+    // Conducteur
     private Conducteur conducteur(Long id) {
         Conducteur conducteur = new Conducteur();
         conducteur.setId(id);
         return conducteur;
     }
 
-    // Construit un vehicule deja "enregistre" (avec id) appartenant a un conducteur
+    // Vehicule
     private Vehicule vehicule(Long id, Conducteur proprietaire) {
         Vehicule vehicule = new Vehicule();
         vehicule.setId(id);
@@ -75,7 +73,7 @@ class VehiculeServiceImplTest {
         return vehicule;
     }
 
-    // ---------- ajouter ----------
+    // ajouter
 
     @Test
     void ajouter_nominal_normaliseImmatriculationEtRattacheLeConducteur() {
@@ -119,12 +117,10 @@ class VehiculeServiceImplTest {
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("1");
 
-        // verifyNoInteractions : le repository des vehicules n'a MEME PAS ete appele
-        // (le service s'arrete des qu'il ne trouve pas le conducteur)
         verifyNoInteractions(vehiculeRepository);
     }
 
-    // ---------- trouverParId / listerParConducteur ----------
+    //  trouverParId
 
     @Test
     void trouverParId_inexistant_lanceResourceNotFoundException() {
@@ -135,6 +131,7 @@ class VehiculeServiceImplTest {
                 .hasMessageContaining("99");
     }
 
+    // listerParConducteur
     @Test
     void listerParConducteur_nominal_renvoieLesVehiculesDuConducteur() {
         Vehicule vehicule = vehicule(10L, conducteur(1L));
@@ -157,7 +154,7 @@ class VehiculeServiceImplTest {
         verifyNoInteractions(vehiculeRepository);
     }
 
-    // ---------- modifier ----------
+    // modifier
 
     @Test
     void modifier_parUnAutreConducteur_lanceForbiddenActionException() {
@@ -191,13 +188,12 @@ class VehiculeServiceImplTest {
 
         VehiculeResponse resultat = vehiculeService.modifier(10L, request);
 
-        // updateEntity est une methode void : rien a programmer, on verifie juste qu'elle a ete appelee
         verify(vehiculeMapper).updateEntity(request, existant);
         assertThat(existant.getImmatriculation()).isEqualTo("12345-A-6");
         assertThat(resultat).isEqualTo(reponse);
     }
 
-    // ---------- supprimer ----------
+    // supprimer
 
     @Test
     void supprimer_parUnAutreConducteur_lanceForbiddenActionException() {

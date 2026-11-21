@@ -19,14 +19,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-// Active Mockito dans JUnit cree les @Mock et les injecte dans @InjectMocks
+// Active Mockito dans JUnit : cree les @Mock et les injecte dans @InjectMocks
 @ExtendWith(MockitoExtension.class)
 class ConducteurServiceImplTest {
 
@@ -51,7 +53,7 @@ class ConducteurServiceImplTest {
 
     @Test
     void creer_nominal_sauvegardeEmailNormaliseEtMotDePasseHache() {
-        // given : on programme les doublures
+        // given
         Conducteur entite = new Conducteur();
         ConducteurResponse reponse = new ConducteurResponse(
                 1L, "Lahcen", "Akdime", "lahcen@gmail.com", "0601667201", "1234");
@@ -61,34 +63,36 @@ class ConducteurServiceImplTest {
         when(passwordUtils.generateSalt()).thenReturn("sel");
         when(passwordUtils.hashPassword("12345678", "sel")).thenReturn("hash");
         when(conducteurMapper.toEntity(request)).thenReturn(entite);
-        // thenAnswer : le repository "renvoie" l'objet qu'on lui a donne
         when(conducteurRepository.save(any(Conducteur.class))).thenAnswer(inv -> inv.getArgument(0));
         when(conducteurMapper.toResponse(any(Conducteur.class))).thenReturn(reponse);
 
         // when
         ConducteurResponse resultat = conducteurService.creer(request);
 
-        // then : ArgumentCaptor recupere l'objet reellement envoye a save()
+        // then
         ArgumentCaptor<Conducteur> captor = ArgumentCaptor.forClass(Conducteur.class);
         verify(conducteurRepository).save(captor.capture());
         Conducteur sauvegarde = captor.getValue();
 
-        assertThat(sauvegarde.getEmail()).isEqualTo("lahcen@gmail.com");
-        assertThat(sauvegarde.getNumeroPermis()).isEqualTo("1234");
-        assertThat(sauvegarde.getSalt()).isEqualTo("sel");
-        assertThat(sauvegarde.getPassword()).isEqualTo("hash").isNotEqualTo("12345678");
-        assertThat(resultat).isEqualTo(reponse);
+        //
+        assertEquals("lahcen@gmail.com", sauvegarde.getEmail());
+        assertEquals("1234", sauvegarde.getNumeroPermis());
+        assertEquals("sel", sauvegarde.getSalt());
+        assertEquals("hash", sauvegarde.getPassword());
+        assertNotEquals("12345678", sauvegarde.getPassword());
+        assertEquals(reponse, resultat);
     }
 
     @Test
     void creer_emailDejaUtilise_lanceBusinessRuleException() {
         when(conducteurRepository.existsByEmailIgnoreCase("lahcen@gmail.com")).thenReturn(true);
 
-        assertThatThrownBy(() -> conducteurService.creer(request))
-                .isInstanceOf(BusinessRuleException.class)
-                .hasMessageContaining("lahcen@gmail.com");
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class,
+                () -> conducteurService.creer(request));
 
-        // Regle refusee : rien ne doit etre sauvegarde
+        assertTrue(ex.getMessage().contains("lahcen@gmail.com"));
+
+        // pas de save
         verify(conducteurRepository, never()).save(any());
     }
 
@@ -97,9 +101,10 @@ class ConducteurServiceImplTest {
         when(conducteurRepository.existsByEmailIgnoreCase("lahcen@gmail.com")).thenReturn(false);
         when(conducteurRepository.existsByNumeroPermis("1234")).thenReturn(true);
 
-        assertThatThrownBy(() -> conducteurService.creer(request))
-                .isInstanceOf(BusinessRuleException.class)
-                .hasMessageContaining("1234");
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class,
+                () -> conducteurService.creer(request));
+
+        assertTrue(ex.getMessage().contains("1234"));
 
         verify(conducteurRepository, never()).save(any());
     }
@@ -108,9 +113,10 @@ class ConducteurServiceImplTest {
     void trouverParId_inexistant_lanceResourceNotFoundException() {
         when(conducteurRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> conducteurService.trouverParId(99L))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("99");
+        ResourceNotFoundException ex = assertThrows(ResourceNotFoundException.class,
+                () -> conducteurService.trouverParId(99L));
+
+        assertTrue(ex.getMessage().contains("99"));
     }
 
     @Test
@@ -118,8 +124,7 @@ class ConducteurServiceImplTest {
         when(conducteurRepository.findById(1L)).thenReturn(Optional.of(new Conducteur()));
         when(conducteurRepository.existsByEmailIgnoreCaseAndIdNot("lahcen@gmail.com", 1L)).thenReturn(true);
 
-        assertThatThrownBy(() -> conducteurService.modifier(1L, request))
-                .isInstanceOf(BusinessRuleException.class);
+        assertThrows(BusinessRuleException.class, () -> conducteurService.modifier(1L, request));
 
         verify(conducteurRepository, never()).save(any());
     }
@@ -140,8 +145,8 @@ class ConducteurServiceImplTest {
 
         ConducteurResponse resultat = conducteurService.modifier(1L, request);
 
-        assertThat(existant.getEmail()).isEqualTo("lahcen@gmail.com");
-        assertThat(existant.getPassword()).isEqualTo("hash");
-        assertThat(resultat).isEqualTo(reponse);
+        assertEquals("lahcen@gmail.com", existant.getEmail());
+        assertEquals("hash", existant.getPassword());
+        assertEquals(reponse, resultat);
     }
 }

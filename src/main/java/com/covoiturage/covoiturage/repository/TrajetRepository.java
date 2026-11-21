@@ -2,6 +2,7 @@ package com.covoiturage.covoiturage.repository;
 
 import com.covoiturage.covoiturage.dto.trajet.TrajetRechercheResponse;
 import com.covoiturage.covoiturage.model.Trajet;
+import com.covoiturage.covoiturage.model.enums.StatutTrajet;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -12,6 +13,8 @@ import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 public interface TrajetRepository extends JpaRepository<Trajet, Long> {
@@ -54,4 +57,6 @@ public interface TrajetRepository extends JpaRepository<Trajet, Long> {
 
 
     boolean existsByVehiculeId(Long vehiculeId);
+
+    List<Trajet> findByConducteurIdAndStatutIn(Long conducteurId, Collection<StatutTrajet> status);
 }

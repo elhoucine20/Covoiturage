@@ -16,7 +16,7 @@ public interface ConducteurRepository extends JpaRepository<Conducteur,Long> {
 
     @Query("""
             select c from Conducteur c
-            where lower(c.nom) like lower(concat('%', :critere, '%'))
+            where lower(c.nom) like lower(concat('%', :critere, '%')) or lower(c.prenom) like lower(concat('%', :critere, '%'))
                or lower(c.email) like lower(concat('%', :critere, '%'))
             order by c.nom, c.prenom
             """)
