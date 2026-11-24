@@ -50,8 +50,8 @@ public class TrajetServiceImpl implements TrajetService {
 
     private final ReservationRepository reservationRepository;
 
-    private static final BigDecimal PRIX_MAX_PAR_DEFAUT = new BigDecimal("99999999.99");
-    private static final int TAILLE_PAGE_MAX = 50;
+    private static final BigDecimal PRIX_MAX_PAR_DEFAUT = new BigDecimal("9999.99");
+    private static final int TAILLE_PAGE_MAX = 20;
 
     @Override
     @Transactional
@@ -70,7 +70,7 @@ public class TrajetServiceImpl implements TrajetService {
         }
 
         List<PointArretRequest> pointes = request.pointsArret();
-        validerParcours(pointes);
+        validerParcours(pointes); // validation des points d'arretes
         PointArretRequest premier = pointes.get(0);
         PointArretRequest dernier = pointes.get(pointes.size()-1);
         // validation de eviter si le conductreur a deja un trajet
